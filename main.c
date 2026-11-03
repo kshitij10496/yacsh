@@ -1,4 +1,3 @@
-#include <_stdio.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,8 +7,9 @@
 int main(int argc, char *argv[]) {
   while (1) {
     // Buffer to hold user input.
-    // TODO: Alternate ways to not hardcode a max length. Read till newline
+    // TODO: Explore using a StringSlice type for easily operating on strings.
     // character.
+    // TODO: Alternate ways to not hardcode a max length. Read till newline
     char buf[1024];
 
     // Prompt engineering.
@@ -17,7 +17,8 @@ int main(int argc, char *argv[]) {
 
     // Read user input from standard input stream.
     // TODO: Error handling.
-    fgets(buf, 1024, stdin);
+    if (fgets(buf, sizeof(buf), stdin) == NULL)
+      continue;
 
     // Sanitize user input - trim newline character.
     // Replace with the NUL termination character.
@@ -26,18 +27,27 @@ int main(int argc, char *argv[]) {
       *nl = 0;
 
     // Split buffer into args by whitespace character.
+    // TODO: Find a better way to dynamically allow multiple words.
     char *args[20];
     int nargs = 0;
 
-    args[nargs] = strtok(buf, " ");
-    while (args[nargs] != NULL) {
-      args[++nargs] = strtok(NULL, " ");
+    // TODO: Trim whitespace characters from each word.
+    // TODO: Can we use a general whitespace character instead of hardcoding?
+    char *cursor = buf; // Movable view into the buffer string.
+    char *token;
+    while ((token = strsep(&cursor, " \t")) != NULL) {
+      args[nargs] = token;
+      nargs++;
     }
+    // Add a NULL pointer as the last element of the array of args.
+    args[nargs] = NULL;
 
-    if (args[0] == NULL) continue;
+    if (args[0] == NULL)
+      continue;
 
     // "exit" command to exit the shell.
-    if (strcmp(args[0], "exit") == 0) exit(0);
+    if (strcmp(args[0], "exit") == 0)
+      exit(0);
 
     // Fork and exec.
     pid_t pid = fork();
