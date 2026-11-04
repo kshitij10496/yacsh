@@ -45,6 +45,21 @@ char *to_cstring(String_Slice ss) {
   return s;
 }
 
+// Checks both the string slices for equality character by character.
+int ss_eq(String_Slice l, String_Slice r) {
+  if (l.count != r.count) {
+    return 0;
+  }
+
+  for (int i = 0; i < l.count; i++) {
+    if (l.data[i] != r.data[i]) {
+      return 0;
+    }
+  }
+
+  return 1;
+}
+
 // Chops n characters from the end of the string.
 void ss_chop_right(String_Slice *s, size_t n) {
   // Clamp the characters to the be chopped to the length of the string.

@@ -7,12 +7,12 @@
 #include <unistd.h>
 
 int main(int argc, char *argv[]) {
+  // Prompt engineering.
   while (1) {
     // Buffer to hold user input.
     // TODO: Alternate ways to not hardcode a max length. Read till newline.
     char buf[1024];
 
-    // Prompt engineering.
     printf("$ ");
 
     // Read user input from standard input stream.
@@ -24,47 +24,57 @@ int main(int argc, char *argv[]) {
     }
 
     // Build a string slice to simplify string manipulation.
+    // Thus, we do not need to reallocate the input string again.
+    // We work with views into the same shared string.
+    // We can mutate the windows such as input whenever we desire.
     String_Slice input = new_string_slice(buf);
 
     // Sanitize user input - trim newline character.
     // Replace with the NUL termination character.
     String_Slice sanitized_input = ss_sep(&input, '\n');
 
-    char *args[20];
+    // TODO: How to dynamically allocate this memory?
+    String_Slice args[20];
     int nargs = 0;
     while (sanitized_input.count > 0) {
       String_Slice word = ss_sep_by_type(&sanitized_input, isspace);
+
       // Sanitize each word and ignore empty spaces.
       ss_trim(&word);
       if (word.count == 0) {
         continue;
       }
-      // Clone the string slice into program's dynamic memory.
-      args[nargs] = to_cstring(word);
+      args[nargs] = word;
       nargs++;
     }
-    // Hack needed for the syscall.
-    args[nargs] = NULL;
 
     // Fail fast when the user provides no input.
-    if (args[0] == NULL)
+    if (nargs == 0)
       continue;
 
     // "exit" builtin command to exit the shell.
-    if (strcmp(args[0], "exit") == 0)
+    if (ss_eq(args[0], new_string_slice("exit")) == 1)
       exit(0);
 
     // Fork and exec.
     pid_t pid = fork();
 
     switch (pid) {
-    case 0:
+    case 0: {
       // Child process
       // TODO: Support output redirection.
-      execvp(args[0], args);
+      // Convert the user input to args.
+      char *execArgs[20];
+      for (int i = 0; i < nargs; i++) {
+        execArgs[i] = to_cstring(args[i]);
+      }
+      execArgs[nargs] = NULL;
+
+      execvp(execArgs[0], execArgs);
       // Failed for some reason so exit the shell.
-      perror(args[0]);
+      perror(execArgs[0]);
       exit(1);
+    }
     case -1:
       // Failed to fork the parent process.
       // Thus, no child process is created.
