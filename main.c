@@ -1,3 +1,5 @@
+#include "strings.c"
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,9 +9,7 @@
 int main(int argc, char *argv[]) {
   while (1) {
     // Buffer to hold user input.
-    // TODO: Explore using a StringSlice type for easily operating on strings.
-    // character.
-    // TODO: Alternate ways to not hardcode a max length. Read till newline
+    // TODO: Alternate ways to not hardcode a max length. Read till newline.
     char buf[1024];
 
     // Prompt engineering.
@@ -20,32 +20,34 @@ int main(int argc, char *argv[]) {
     if (fgets(buf, sizeof(buf), stdin) == NULL)
       continue;
 
+    // Build a string slice to simplify string manipulation.
+    String_Slice input = new_string_slice(buf);
+
     // Sanitize user input - trim newline character.
     // Replace with the NUL termination character.
-    char *nl = strchr(buf, '\n');
-    if (nl)
-      *nl = 0;
+    String_Slice sanitized_input = ss_sep(&input, '\n');
 
-    // Split buffer into args by whitespace character.
-    // TODO: Find a better way to dynamically allow multiple words.
     char *args[20];
     int nargs = 0;
-
-    // TODO: Trim whitespace characters from each word.
-    // TODO: Can we use a general whitespace character instead of hardcoding?
-    char *cursor = buf; // Movable view into the buffer string.
-    char *token;
-    while ((token = strsep(&cursor, " \t")) != NULL) {
-      args[nargs] = token;
+    while (sanitized_input.count > 0) {
+      String_Slice word = ss_sep_by_type(&sanitized_input, isspace);
+      // Sanitize each word and ignore empty spaces.
+      ss_trim(&word);
+      if (word.count == 0) {
+        continue;
+      }
+      // Clone the string slice into program's dynamic memory.
+      args[nargs] = to_cstring(word);
       nargs++;
     }
-    // Add a NULL pointer as the last element of the array of args.
+    // Hack needed for the syscall.
     args[nargs] = NULL;
 
+    // Fail fast when the user provides no input.
     if (args[0] == NULL)
       continue;
 
-    // "exit" command to exit the shell.
+    // "exit" builtin command to exit the shell.
     if (strcmp(args[0], "exit") == 0)
       exit(0);
 
@@ -58,8 +60,7 @@ int main(int argc, char *argv[]) {
       // TODO: Support output redirection.
       execvp(args[0], args);
       // Something went wrong.
-      fprintf(stderr, "failed to exec %s\n", buf);
-
+      fprintf(stderr, "failed to exec: %s\n", buf);
       break;
     case -1:
       // Failed to fork the parent process.
