@@ -17,8 +17,11 @@ int main(int argc, char *argv[]) {
 
     // Read user input from standard input stream.
     // TODO: Error handling.
-    if (fgets(buf, sizeof(buf), stdin) == NULL)
-      continue;
+    if (fgets(buf, sizeof(buf), stdin) == NULL) {
+      // EOF or Ctrl+D should terminate the shell.
+      printf("\n");
+      break;
+    }
 
     // Build a string slice to simplify string manipulation.
     String_Slice input = new_string_slice(buf);
@@ -59,9 +62,9 @@ int main(int argc, char *argv[]) {
       // Child process
       // TODO: Support output redirection.
       execvp(args[0], args);
-      // Something went wrong.
-      fprintf(stderr, "failed to exec: %s\n", buf);
-      break;
+      // Failed for some reason so exit the shell.
+      perror(args[0]);
+      exit(1);
     case -1:
       // Failed to fork the parent process.
       // Thus, no child process is created.
