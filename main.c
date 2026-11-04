@@ -70,6 +70,7 @@ int main(int argc, char *argv[]) {
       // Thus, no child process is created.
       // Parent process should handle this.
       // errono is set to indicate the error.
+      perror("fork");
       break;
 
     default:
