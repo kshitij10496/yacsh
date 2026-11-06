@@ -1,5 +1,6 @@
 #include "strings.c"
 #include <ctype.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -53,7 +54,7 @@ int main(int argc, char *argv[]) {
       continue;
 
     // "exit" builtin command to exit the shell.
-    if (ss_eq(args[0], new_string_slice("exit")) == 1)
+    if (ss_eq(args[0], new_string_slice("exit")))
       exit(0);
 
     // Fork and exec.
@@ -62,7 +63,22 @@ int main(int argc, char *argv[]) {
     switch (pid) {
     case 0: {
       // Child process
-      // TODO: Support output redirection.
+      // Output Redirection.
+      int idx = ss_arr_contains(args, nargs, new_string_slice(">"));
+      if (idx >= 0) {
+        // The next argument should be the output stream of the child process.
+        // TODO: Support non-space separated argument like ">result".
+        String_Slice outputStream = args[idx + 1];
+        // Change the output stream from stdout to the redirected stream.
+        int fdOutput =
+            open(to_cstring(outputStream), O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+        dup2(fdOutput, 1);
+        // dup handles the writes. Safe to close the FD.
+        close(fdOutput);
+
+        // Trim the list of args to before the Redirection operator.
+        nargs = idx;
+      }
       // Convert the user input to args.
       char *execArgs[20];
       for (int i = 0; i < nargs; i++) {

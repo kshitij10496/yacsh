@@ -6,7 +6,7 @@ Wannabe [ash](https://en.wikipedia.org/wiki/Almquist_shell?useskin=vector)
 
 ## Supported Features
 
-- `fork()` + `exec()` combo
+- Child process: `fork()` + `exec()`
 - Redirection: Input, and Output
 - Scripts
 - CLI Editing

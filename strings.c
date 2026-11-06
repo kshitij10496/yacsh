@@ -1,4 +1,5 @@
 #include <ctype.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -46,18 +47,18 @@ char *to_cstring(String_Slice ss) {
 }
 
 // Checks both the string slices for equality character by character.
-int ss_eq(String_Slice l, String_Slice r) {
+bool ss_eq(String_Slice l, String_Slice r) {
   if (l.count != r.count) {
-    return 0;
+    return false;
   }
 
   for (int i = 0; i < l.count; i++) {
     if (l.data[i] != r.data[i]) {
-      return 0;
+      return false;
     }
   }
 
-  return 1;
+  return true;
 }
 
 // Chops n characters from the end of the string.
@@ -148,4 +149,16 @@ String_Slice ss_sep_by_type(String_Slice *ss, int (*istype)(int c)) {
   String_Slice result = *ss;
   ss_chop_left(ss, ss->count);
   return result;
+}
+
+// Returns the index of the element in the array if it exists.
+// Else, returns -1.
+int ss_arr_contains(String_Slice arr[], int len, String_Slice s) {
+  // Compute the length of the array.
+  for (int i = 0; i < len; i++) {
+    if (ss_eq(arr[i], s)) {
+      return i;
+    }
+  }
+  return -1;
 }
