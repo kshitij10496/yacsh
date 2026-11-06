@@ -73,17 +73,41 @@ char *readline(FILE *fp) {
 }
 
 int main(int argc, char *argv[]) {
+  FILE *fd_input = stdin;
+  // Check for a script file as CLI parameter.
+  bool is_interactive = true;
+
+  // Assume the first parameter is a script file.
+  if (argc > 1) {
+    is_interactive = false;
+    fd_input = fopen(argv[1], "r");
+    if (fd_input == NULL) {
+      perror("opening script");
+      return 1;
+    }
+  }
+
   // Prompt engineering.
   while (1) {
-    printf("$ ");
+    if (is_interactive) {
+      printf("$ ");
+    }
 
     // Buffer to hold user input.
     // TODO: Alternate ways to not hardcode a max length. Read till newline.
-    char *buf = readline(stdin);
+    char *buf = readline(fd_input);
     if (buf == NULL) {
       // EOF or Ctrl+D should terminate the shell.
       printf("\n");
       break;
+    }
+
+    // COMMENTS
+    // Ignore everything after the "#" character.
+    char *found_comment = strchr(buf, '#');
+    if (found_comment != NULL) {
+      // Set to NUL terminator to trim from the input buffer.
+      *found_comment = 0;
     }
 
     // Build a string slice to simplify string manipulation.
@@ -160,6 +184,7 @@ int main(int argc, char *argv[]) {
         // Trim the list of args to before the Redirection operator.
         nargs = idxInput;
       }
+
       // Convert the user input to args.
       char *execArgs[20];
       for (int i = 0; i < nargs; i++) {
