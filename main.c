@@ -79,6 +79,25 @@ int main(int argc, char *argv[]) {
         // Trim the list of args to before the Redirection operator.
         nargs = idx;
       }
+
+      // Input Redirection
+      // NOTE: We assume Input Redirection can only potentially occur before any
+      // Output Redirection.
+      int idxInput = ss_arr_contains(args, nargs, new_string_slice("<"));
+      if (idxInput >= 0) {
+        // The next argument should be the input stream of the child process.
+        // TODO: Support non-space separated argument like ">result".
+        String_Slice inputStream = args[idxInput + 1];
+        // Change the input stream from stdin to the redirected stream.
+        int fdInput =
+            open(to_cstring(inputStream), O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
+        dup2(fdInput, 0);
+        // dup handles the writes. Safe to close the FD.
+        close(fdInput);
+
+        // Trim the list of args to before the Redirection operator.
+        nargs = idxInput;
+      }
       // Convert the user input to args.
       char *execArgs[20];
       for (int i = 0; i < nargs; i++) {
