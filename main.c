@@ -7,18 +7,80 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+// Read a line of arbitrary size from a file until newline or EOF character.
+//
+// Returns a pointer to the line.
+// Returns NULL on error.
+//
+// The caller is responsible to free() this pointer when done.
+//
+// NOTE: Strips any newline or EOF character.
+char *readline(FILE *fp) {
+  int offset = 0;
+  int bufsize = 4; // Size of the initial buffer.
+
+  // Allocate initial buffer.
+  char *buf = malloc(bufsize);
+  if (buf == NULL) {
+    return NULL;
+  }
+
+  // Read one character at a time.
+  int c = 0;
+  // From man pages:
+  // fgetc() return the next requested object from the stream.
+  // Character values are returned as an unsigned char converted to an int.
+  // If the stream is at end-of-file or a read error occurs, fgetc return EOF.
+  while (c = fgetc(fp), c != '\n') {
+    // Discard existing input when EOF is parsed.
+    if (c == EOF) {
+      free(buf);
+      return NULL;
+    }
+    // Grow the buffer if it does not have enough room left for the new
+    // character.
+    if (offset == bufsize - 1) {
+      // Double the buffer.
+      bufsize *= 2;
+      char *newBuf = realloc(buf, bufsize);
+      // Fail when we cannot allocate a new buffer.
+      if (newBuf == NULL) {
+        free(buf);
+        return NULL;
+      }
+
+      // Successful reallocation.
+      buf = newBuf;
+    }
+
+    // Add the byte to the buffer.
+    buf[offset] = c;
+    offset += 1;
+  }
+
+  // Shrink the buffer to fit.
+  // NOTE: This is a best effort, and possible to fail silently.
+  if (offset < bufsize - 1) {
+    char *new_buf = realloc(buf, offset + 1);
+    if (new_buf != NULL) {
+      buf = new_buf;
+    }
+  }
+
+  // Add the NUL string terminator.
+  buf[offset] = 0;
+  return buf;
+}
+
 int main(int argc, char *argv[]) {
   // Prompt engineering.
   while (1) {
-    // Buffer to hold user input.
-    // TODO: Alternate ways to not hardcode a max length. Read till newline.
-    char buf[1024];
-
     printf("$ ");
 
-    // Read user input from standard input stream.
-    // TODO: Error handling.
-    if (fgets(buf, sizeof(buf), stdin) == NULL) {
+    // Buffer to hold user input.
+    // TODO: Alternate ways to not hardcode a max length. Read till newline.
+    char *buf = readline(stdin);
+    if (buf == NULL) {
       // EOF or Ctrl+D should terminate the shell.
       printf("\n");
       break;
@@ -125,6 +187,7 @@ int main(int argc, char *argv[]) {
       // TODO: Check for the flags set.
       wait(NULL);
     }
+    free(buf);
   }
   return 0;
 }
