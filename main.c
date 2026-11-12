@@ -1,4 +1,4 @@
-#include "strings.c"
+#include "string_window.c"
 #include <ctype.h>
 #include <fcntl.h>
 #include <stdio.h>
@@ -66,95 +66,105 @@ char *readline(FILE *fp) {
       buf = new_buf;
     }
   }
-
   // Add the NUL string terminator.
   buf[offset] = 0;
   return buf;
 }
 
 int main(int argc, char *argv[]) {
-  FILE *fd_input = stdin;
+  FILE *input_stream = stdin;
   // Check for a script file as CLI parameter.
   bool is_interactive = true;
 
   // Assume the first parameter is a script file.
   if (argc > 1) {
     is_interactive = false;
-    fd_input = fopen(argv[1], "r");
-    if (fd_input == NULL) {
+    input_stream = fopen(argv[1], "r");
+    if (input_stream == NULL) {
       perror("opening script");
       return 1;
     }
   }
 
-  // Prompt engineering.
+  // OG Prompt engineering.
   while (1) {
     if (is_interactive) {
       printf("$ ");
     }
 
     // Buffer to hold user input.
+    // TODO: Study a bit more about Standard I/O.
     // TODO: Alternate ways to not hardcode a max length. Read till newline.
-    char *buf = readline(fd_input);
+    // NOTE: Free this variable at the end of every loop.
+    char *buf = readline(input_stream);
     if (buf == NULL) {
       // EOF or Ctrl+D should terminate the shell.
       printf("\n");
       break;
     }
 
-    // COMMENTS
-    // Ignore everything after the "#" character.
-    char *found_comment = strchr(buf, '#');
-    if (found_comment != NULL) {
-      // Set to NUL terminator to trim from the input buffer.
-      *found_comment = 0;
-    }
-
     // Build a string slice to simplify string manipulation.
     // Thus, we do not need to reallocate the input string again.
     // We work with views into the same shared string.
     // We can mutate the windows such as input whenever we desire.
-    String_Slice input = new_string_slice(buf);
+    String_View input = new_string_view(buf);
 
     // Sanitize user input - trim newline character.
     // Replace with the NUL termination character.
-    String_Slice sanitized_input = ss_sep(&input, '\n');
+    String_View sanitized_input = sv_sep(&input, '\n');
 
-    // TODO: How to dynamically allocate this memory?
-    String_Slice args[20];
+    // TODO:Find the max length of args to support from POSIX standard.
+    String_View args[20];
     int nargs = 0;
     while (sanitized_input.count > 0) {
-      String_Slice word = ss_sep_by_type(&sanitized_input, isspace);
+      String_View word = sv_sep_by_type(&sanitized_input, isspace);
 
-      // Sanitize each word and ignore empty spaces.
-      ss_trim(&word);
+      // Sanitize each word.
+      sv_trim(&word);
       if (word.count == 0) {
         continue;
       }
+
+      // COMMENTS
+      // Ignore all the arguments following a word that begins with the "#"
+      // character.
+      if (sv_begins_with(word, '#')) {
+        break;
+      }
+
       args[nargs] = word;
       nargs++;
     }
 
     // Fail fast when the user provides no input.
-    if (nargs == 0)
+    if (nargs == 0) {
       continue;
+    }
 
     // "exit" builtin command to exit the shell.
-    if (ss_eq(args[0], new_string_slice("exit")))
+    if (sv_eq(args[0], new_string_view("exit"))) {
       exit(0);
+    }
 
     // Fork and exec.
     pid_t pid = fork();
+    if (pid < 0) {
+      // Failed to fork the parent process.
+      // errono is set to indicate the error.
+      perror("fork");
+      // TODO: Is exit() more appropriate than a simple return?
+      exit(1);
+    }
 
-    switch (pid) {
-    case 0: {
+    if (pid == 0) {
       // Child process
+
       // Output Redirection.
-      int idx = ss_arr_contains(args, nargs, new_string_slice(">"));
+      int idx = sv_arr_contains(args, nargs, new_string_view(">"));
       if (idx >= 0) {
         // The next argument should be the output stream of the child process.
         // TODO: Support non-space separated argument like ">result".
-        String_Slice outputStream = args[idx + 1];
+        String_View outputStream = args[idx + 1];
         // Change the output stream from stdout to the redirected stream.
         int fdOutput =
             open(to_cstring(outputStream), O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
@@ -169,11 +179,11 @@ int main(int argc, char *argv[]) {
       // Input Redirection
       // NOTE: We assume Input Redirection can only potentially occur before any
       // Output Redirection.
-      int idxInput = ss_arr_contains(args, nargs, new_string_slice("<"));
+      int idxInput = sv_arr_contains(args, nargs, new_string_view("<"));
       if (idxInput >= 0) {
         // The next argument should be the input stream of the child process.
         // TODO: Support non-space separated argument like ">result".
-        String_Slice inputStream = args[idxInput + 1];
+        String_View inputStream = args[idxInput + 1];
         // Change the input stream from stdin to the redirected stream.
         int fdInput =
             open(to_cstring(inputStream), O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
@@ -196,20 +206,11 @@ int main(int argc, char *argv[]) {
       // Failed for some reason so exit the shell.
       perror(execArgs[0]);
       exit(1);
-    }
-    case -1:
-      // Failed to fork the parent process.
-      // Thus, no child process is created.
-      // Parent process should handle this.
-      // errono is set to indicate the error.
-      perror("fork");
-      break;
-
-    default:
+    } else {
       // Parent process.
       //
-      // Wait for the child to finish.
-      // TODO: Check for the flags set.
+      // Wait for the child process to finish.
+      // TODO: Replace with more verbost wait4() library function.
       wait(NULL);
     }
     free(buf);
